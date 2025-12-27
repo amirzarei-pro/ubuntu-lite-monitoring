@@ -69,6 +69,18 @@ docker compose up --build
 ```
 Open http://localhost:8080.
 
+### See host Docker containers
+By default, the container cannot see the host Docker daemon. To list host containers from the dashboard, run with the Docker socket mounted (and optional extra visibility):
+
+```bash
+docker compose down
+docker compose up --build \
+  -o web.volumes[1]=/var/run/docker.sock:/var/run/docker.sock \
+  -o web.privileged=true
+```
+
+Or edit docker-compose.yml and uncomment the provided `volumes`/`privileged` lines. Ensure the socket permissions allow access (or run as root/privileged for testing). Use with caution in production.
+
 ## Host Metrics vs Container Metrics
 By default, when running inside Docker, commands like `ps`, `uptime`, and `last` reflect the container environment, not the host. To gather host-level metrics, you can run the container with elevated privileges and mount specific host resources:
 
