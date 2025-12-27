@@ -1,0 +1,17 @@
+version: "3.8"
+services:
+  web:
+    build: .
+    ports:
+      - "8080:80"
+    volumes:
+      - .:/var/www/html:ro
+    # Uncomment the below for broader host visibility inside the container
+    # pid: "host"
+    # privileged: true
+    # volumes:
+    #   - /var/run/docker.sock:/var/run/docker.sock
+    #   - /var/log/wtmp:/var/log/wtmp:ro
+    #   - /proc:/host_proc:ro
+    # environment:
+    #   - PROC_MOUNT=/host_proc
