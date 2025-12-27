@@ -154,6 +154,7 @@ function getLastSSHLogins() {
 function getDockerStatus() {
     // Check if Docker is installed
     $dockerInstalled = shell_exec('which docker 2>/dev/null');
+    
     if (empty($dockerInstalled)) {
         return [
             'installed' => false,
@@ -163,39 +164,30 @@ function getDockerStatus() {
             'error' => null
         ];
     }
-
-    $version = trim(shell_exec('docker --version 2>/dev/null'));
+    
+    // Check if Docker daemon is running
+    $dockerRunning = shell_exec('systemctl is-active docker 2>/dev/null');
+    $isRunning = trim($dockerRunning) === 'active';
+    
+    // Get Docker version
+    $version = shell_exec('docker --version 2>/dev/null');
+    
     $containers = [];
     $allContainers = [];
     $error = null;
-    $isRunning = false;
-
-    // Prefer socket-based check (works in containers) over systemd
-    $socketExists = file_exists('/var/run/docker.sock');
-    if ($socketExists) {
-        $infoOutput = shell_exec('docker info 2>&1');
-        if (strpos($infoOutput, 'Cannot connect') !== false || strpos($infoOutput, 'permission denied') !== false) {
-            $error = 'Cannot connect to Docker daemon. Ensure socket is mounted and permissions allow access.';
-        } elseif (!empty($infoOutput)) {
-            $isRunning = true;
-        }
-    }
-
-    // Fallback: systemctl (useful on hosts, not inside slim containers)
-    if (!$isRunning) {
-        $dockerRunning = shell_exec('systemctl is-active docker 2>/dev/null');
-        $isRunning = trim($dockerRunning) === 'active';
-    }
-
-    if ($isRunning && $error === null) {
+    
+    if ($isRunning) {
         // Try to get running containers with docker ps
         $runningList = shell_exec('docker ps --format "{{.ID}}|{{.Names}}|{{.Status}}|{{.Image}}|{{.Ports}}" 2>&1');
+        
+        // Check for permission errors
         if (strpos($runningList, 'permission denied') !== false || strpos($runningList, 'Cannot connect') !== false) {
-            $error = 'Permission denied accessing Docker. Add the web user to the docker group or run with proper socket permissions.';
-        } elseif (!empty(trim($runningList))) {
+            $error = 'Permission denied. Add www-data user to docker group.';
+        } elseif (!empty($runningList)) {
             $lines = explode("\n", trim($runningList));
             foreach ($lines as $line) {
                 if (empty($line)) continue;
+                
                 $parts = explode('|', $line);
                 if (count($parts) >= 4) {
                     $containers[] = [
@@ -209,17 +201,21 @@ function getDockerStatus() {
                 }
             }
         }
-
+        
+        // Get all containers (including stopped) with docker ps -a
         if ($error === null) {
             $allList = shell_exec('docker ps -a --format "{{.ID}}|{{.Names}}|{{.Status}}|{{.Image}}|{{.Ports}}" 2>&1');
-            if (!empty(trim($allList)) && strpos($allList, 'permission denied') === false) {
+            
+            if (!empty($allList) && strpos($allList, 'permission denied') === false) {
                 $lines = explode("\n", trim($allList));
                 foreach ($lines as $line) {
                     if (empty($line)) continue;
+                    
                     $parts = explode('|', $line);
                     if (count($parts) >= 4) {
                         $status = $parts[2];
                         $isUp = strpos(strtolower($status), 'up') !== false;
+                        
                         $allContainers[] = [
                             'id' => substr($parts[0], 0, 12),
                             'name' => $parts[1],
@@ -233,11 +229,11 @@ function getDockerStatus() {
             }
         }
     }
-
+    
     return [
         'installed' => true,
         'running' => $isRunning,
-        'version' => $version,
+        'version' => trim($version),
         'containers' => $allContainers,
         'total' => count($allContainers),
         'running_count' => count($containers),

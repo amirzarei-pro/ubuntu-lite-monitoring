@@ -2,27 +2,6 @@
 
 A lightweight PHP-based dashboard to visualize system metrics: CPU, memory, disk usage, uptime and OS info, top processes, recent SSH logins, and Docker status (when available).
 
-## Quick Start (Docker)
-Prerequisites: Docker Desktop (macOS/Windows) or Docker Engine (Linux) with Compose v2 (`docker compose`).
-
-```bash
-git clone https://github.com/amirzarei-pro/ubuntu-lite-monitoring.git
-cd ubuntu-lite-monitoring
-docker compose up --build
-```
-
-Open http://localhost:8080. To run in the background:
-
-```bash
-docker compose up -d --build
-```
-
-Stop when finished:
-
-```bash
-docker compose down
-```
-
 ## Features
 - CPU load, model and core count
 - RAM totals, usage, available, cached and swap usage
@@ -38,73 +17,75 @@ docker compose down
 ├── index.php              # Entry point and UI
 ├── src/
 │   └── System.php         # Modularized metrics functions
-├── Dockerfile             # Container image definition
-├── docker-compose.yml     # Optional orchestration
-└── .dockerignore          # Build context filter
+└── (no Docker assets)     # Docker removed by request
 ```
 
-## Run Locally (no Docker)
-Requires PHP 8+. Start the built-in web server:
+## Requirements (Ubuntu server)
+- Nginx
+- PHP 8.3 (FPM + CLI) and common extensions
+- System tools used by the dashboard metrics: `procps`, `iproute2`, `lsb-release`, `coreutils`, `util-linux`, `curl`
 
+Install on Ubuntu 22.04/24.04:
+
+```bash
+sudo apt update
+sudo apt install -y nginx php8.3-fpm php8.3-cli php8.3-common php8.3-curl php8.3-xml php8.3-zip php8.3-mbstring \
+    procps iproute2 lsb-release coreutils util-linux curl
+```
+
+## Deploy on Nginx + PHP-FPM
+1) Clone the app:
+```bash
+sudo mkdir -p /var/www
+cd /var/www
+sudo git clone https://github.com/amirzarei-pro/ubuntu-lite-monitoring.git
+sudo chown -R www-data:www-data ubuntu-lite-monitoring
+```
+
+2) Create an Nginx server block (e.g., `/etc/nginx/sites-available/ubuntu-lite-monitoring`):
+```nginx
+server {
+    listen 80;
+    server_name _;
+
+    root /var/www/ubuntu-lite-monitoring;
+    index index.php;
+
+    location / {
+        try_files $uri $uri/ /index.php?$args;
+    }
+
+    location ~ \.php$ {
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+    }
+
+    location ~ /\.ht {
+        deny all;
+    }
+}
+```
+
+Enable the site and reload Nginx:
+```bash
+sudo ln -s /etc/nginx/sites-available/ubuntu-lite-monitoring /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+Ensure PHP-FPM is running:
+```bash
+sudo systemctl enable --now php8.3-fpm
+```
+
+3) Browse to your server IP (http://<server-ip>) to view the dashboard.
+
+## Local Dev (PHP built-in server)
+If you prefer not to configure Nginx locally and have PHP 8.3 installed:
 ```bash
 php -S 127.0.0.1:8000
 ```
 Open http://127.0.0.1:8000 in your browser.
-
-## Run with Docker
-Build and run using Docker:
-
-```bash
-# Build image
-docker build -t ubuntu-lite-monitor:latest .
-
-# Run container (basic)
-docker run --rm -p 8080:80 ubuntu-lite-monitor:latest
-```
-Open http://localhost:8080.
-
-### Using docker-compose
-```bash
-docker compose up --build
-```
-Open http://localhost:8080.
-
-### See host Docker containers
-By default, the container cannot see the host Docker daemon. To list host containers from the dashboard, run with the Docker socket mounted (and optional extra visibility):
-
-```bash
-docker compose down
-docker compose up --build \
-  -o web.volumes[1]=/var/run/docker.sock:/var/run/docker.sock \
-  -o web.privileged=true
-```
-
-Or edit docker-compose.yml and uncomment the provided `volumes`/`privileged` lines. Ensure the socket permissions allow access (or run as root/privileged for testing). Use with caution in production.
-
-## Host Metrics vs Container Metrics
-By default, when running inside Docker, commands like `ps`, `uptime`, and `last` reflect the container environment, not the host. To gather host-level metrics, you can run the container with elevated privileges and mount specific host resources:
-
-```yaml
-# docker-compose.yml (uncomment and adjust as needed)
-services:
-  web:
-    build: .
-    ports:
-      - "8080:80"
-    pid: "host"          # Access host process namespace
-    privileged: true      # Broader system access (use with caution)
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock  # Docker info
-      - /var/log/wtmp:/var/log/wtmp:ro            # SSH login history
-      - /proc:/host_proc:ro                       # Host /proc for system data
-    environment:
-      - PROC_MOUNT=/host_proc
-```
-
-> Note: Elevated privileges have security implications. Only enable these settings in trusted environments.
-
-## Permissions for Docker Info
-If you mount the Docker socket, the web server user (`www-data`) may need access. This project detects and reports permission errors; you may see a hint to add the user to the `docker` group. Inside containers, group IDs may differ; using `privileged: true` or proper ACLs typically resolves it.
 
 ## API Endpoint
 The UI fetches fresh data via `/?api=data` returning JSON. You can integrate or extend it by consuming this endpoint.

@@ -1,9 +1,0 @@
-# Reduce Docker build context
-.git/
-.gitignore
-node_modules/
-vendor/
-Dockerfile
-.dockerignore
-README.md
-*.log
