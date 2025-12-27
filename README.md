@@ -2,6 +2,27 @@
 
 A lightweight PHP-based dashboard to visualize system metrics: CPU, memory, disk usage, uptime and OS info, top processes, recent SSH logins, and Docker status (when available).
 
+## Quick Start (Docker)
+Prerequisites: Docker Desktop (macOS/Windows) or Docker Engine (Linux) with Compose v2 (`docker compose`).
+
+```bash
+git clone https://github.com/amirzarei-pro/ubuntu-lite-monitoring.git
+cd ubuntu-lite-monitoring
+docker compose up --build
+```
+
+Open http://localhost:8080. To run in the background:
+
+```bash
+docker compose up -d --build
+```
+
+Stop when finished:
+
+```bash
+docker compose down
+```
+
 ## Features
 - CPU load, model and core count
 - RAM totals, usage, available, cached and swap usage

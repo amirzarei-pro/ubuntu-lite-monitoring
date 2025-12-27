@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y \
     lsb-release \
     coreutils \
     util-linux \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy application code into Apache document root
