@@ -33,36 +33,76 @@ function getCpuUsage() {
 
 // Get detailed RAM usage
 function getMemoryUsage() {
-    $free = shell_exec('free -b');
-    $free = (string)trim($free);
-    $free_arr = explode("\n", $free);
-    $mem = explode(" ", $free_arr[1]);
-    $mem = array_filter($mem);
-    $mem = array_merge($mem);
-    
-    $swap = explode(" ", $free_arr[2]);
-    $swap = array_filter($swap);
-    $swap = array_merge($swap);
-    
-    $memTotal = $mem[1];
-    $memUsed = $mem[2];
-    $memFree = $mem[3];
-    $memAvailable = $mem[6];
-    $memCached = $mem[5];
-    
-    $swapTotal = $swap[1];
-    $swapUsed = $swap[2];
-    
+    // Try using `free` first
+    $freeOutput = shell_exec('free -b 2>/dev/null');
+    $memTotal = 0; $memUsed = 0; $memFree = 0; $memAvailable = 0; $memCached = 0;
+    $swapTotal = 0; $swapUsed = 0;
+
+    if (!empty($freeOutput)) {
+        $lines = preg_split('/\r?\n/', trim($freeOutput));
+        foreach ($lines as $line) {
+            if (strpos($line, 'Mem:') === 0) {
+                $parts = array_values(array_filter(preg_split('/\s+/', $line)));
+                // Expected: ["Mem:", total, used, free, shared, buff/cache, available]
+                $memTotal    = isset($parts[1]) ? (int)$parts[1] : 0;
+                $memUsed     = isset($parts[2]) ? (int)$parts[2] : 0;
+                $memFree     = isset($parts[3]) ? (int)$parts[3] : 0;
+                $memCached   = isset($parts[5]) ? (int)$parts[5] : 0;
+                $memAvailable= isset($parts[6]) ? (int)$parts[6] : 0;
+            } elseif (strpos($line, 'Swap:') === 0) {
+                $parts = array_values(array_filter(preg_split('/\s+/', $line)));
+                // Expected: ["Swap:", total, used, free]
+                $swapTotal = isset($parts[1]) ? (int)$parts[1] : 0;
+                $swapUsed  = isset($parts[2]) ? (int)$parts[2] : 0;
+            }
+        }
+    }
+
+    // Fallback to /proc/meminfo if needed
+    if ($memTotal === 0) {
+        if (is_readable('/proc/meminfo')) {
+            $info = [];
+            $lines = @file('/proc/meminfo', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            foreach ((array)$lines as $line) {
+                if (preg_match('/^(\w+):\s+(\d+)/', $line, $m)) {
+                    $info[$m[1]] = (int)$m[2]; // values in kB
+                }
+            }
+            $memTotal     = isset($info['MemTotal']) ? $info['MemTotal'] * 1024 : 0;
+            $memFree      = isset($info['MemFree']) ? $info['MemFree'] * 1024 : 0;
+            $memAvailable = isset($info['MemAvailable']) ? $info['MemAvailable'] * 1024 : 0;
+            $memCached    = isset($info['Cached']) ? $info['Cached'] * 1024 : 0;
+            // Approximate used as total - available when available exists, else total - free - cached
+            if ($memAvailable > 0) {
+                $memUsed = max($memTotal - $memAvailable, 0);
+            } else {
+                $memUsed = max($memTotal - $memFree - $memCached, 0);
+            }
+
+            $swapTotal    = isset($info['SwapTotal']) ? $info['SwapTotal'] * 1024 : 0;
+            $swapFree     = isset($info['SwapFree']) ? $info['SwapFree'] * 1024 : 0;
+            $swapUsed     = max($swapTotal - $swapFree, 0);
+        }
+    }
+
+    $totalGB     = $memTotal > 0 ? $memTotal / 1024 / 1024 / 1024 : 0;
+    $usedGB      = $memUsed / 1024 / 1024 / 1024;
+    $freeGB      = $memFree / 1024 / 1024 / 1024;
+    $availGB     = $memAvailable / 1024 / 1024 / 1024;
+    $cachedGB    = $memCached / 1024 / 1024 / 1024;
+    $swapTotalGB = $swapTotal / 1024 / 1024 / 1024;
+    $swapUsedGB  = $swapUsed / 1024 / 1024 / 1024;
+
     return [
-        'total' => round($memTotal / 1024 / 1024 / 1024, 2),
-        'used' => round($memUsed / 1024 / 1024 / 1024, 2),
-        'free' => round($memFree / 1024 / 1024 / 1024, 2),
-        'available' => round($memAvailable / 1024 / 1024 / 1024, 2),
-        'cached' => round($memCached / 1024 / 1024 / 1024, 2),
-        'percent' => round(($memUsed / $memTotal) * 100, 1),
+        'total' => round($totalGB, 2),
+        'used' => round($usedGB, 2),
+        'free' => round($freeGB, 2),
+        'available' => round($availGB, 2),
+        'cached' => round($cachedGB, 2),
+        'percent' => $memTotal > 0 ? round(($memUsed / $memTotal) * 100, 1) : 0,
         'swap' => [
-            'total' => round($swapTotal / 1024 / 1024 / 1024, 2),
-            'used' => round($swapUsed / 1024 / 1024 / 1024, 2),
+            'total' => round($swapTotalGB, 2),
+            'used' => round($swapUsedGB, 2),
             'percent' => $swapTotal > 0 ? round(($swapUsed / $swapTotal) * 100, 1) : 0
         ]
     ];
