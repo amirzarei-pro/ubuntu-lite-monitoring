@@ -592,6 +592,8 @@ $data = getSystemData();
                                         <div><strong>Image:</strong> <?php echo htmlspecialchars($container['image']); ?></div>
                                         <div><strong>Status:</strong> <?php echo htmlspecialchars($container['status']); ?></div>
                                         <div><strong>ID:</strong> <?php echo htmlspecialchars($container['id']); ?></div>
+                                        <div><strong>CPU:</strong> <?php echo $container['cpu_percent'] !== null ? htmlspecialchars($container['cpu_percent']) . '%' : 'N/A'; ?></div>
+                                        <div><strong>RAM:</strong> <?php echo $container['mem_usage'] !== null ? htmlspecialchars($container['mem_usage']) . ' (' . htmlspecialchars($container['mem_percent']) . '%)' : 'N/A'; ?></div>
                                         <?php if ($container['ports'] !== 'N/A' && !empty($container['ports'])): ?>
                                             <div><strong>Ports:</strong> <?php echo htmlspecialchars($container['ports']); ?></div>
                                         <?php endif; ?>
@@ -689,6 +691,9 @@ $data = getSystemData();
                     const statusClass = container.running ? 'up' : 'down';
                     const statusDot = container.running ? 'green' : 'red';
                     const statusText = container.running ? 'Running' : 'Stopped';
+                    const cpu = container.cpu_percent !== null && container.cpu_percent !== undefined ? `${container.cpu_percent}%` : 'N/A';
+                    const memUsage = container.mem_usage ? container.mem_usage : 'N/A';
+                    const memPercent = container.mem_percent !== null && container.mem_percent !== undefined ? `${container.mem_percent}%` : 'N/A';
                     
                     html += `
                         <div class="container-card">
@@ -703,6 +708,8 @@ $data = getSystemData();
                                 <div><strong>Image:</strong> ${escapeHtml(container.image)}</div>
                                 <div><strong>Status:</strong> ${escapeHtml(container.status)}</div>
                                 <div><strong>ID:</strong> ${escapeHtml(container.id)}</div>
+                                <div><strong>CPU:</strong> ${cpu}</div>
+                                <div><strong>RAM:</strong> ${memUsage !== 'N/A' ? `${escapeHtml(memUsage)} (${memPercent})` : 'N/A'}</div>
                                 ${container.ports !== 'N/A' && container.ports ? `<div><strong>Ports:</strong> ${escapeHtml(container.ports)}</div>` : ''}
                             </div>
                         </div>

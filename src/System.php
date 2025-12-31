@@ -175,6 +175,7 @@ function getDockerStatus() {
     $containers = [];
     $allContainers = [];
     $error = null;
+    $statsMap = [];
     
     if ($isRunning) {
         // Try to get running containers with docker ps
@@ -228,13 +229,48 @@ function getDockerStatus() {
                 }
             }
         }
+
+        // Collect live resource stats for running containers
+        if ($error === null) {
+            $statsOutput = shell_exec('docker stats --no-stream --format "{{.Name}}|{{.CPUPerc}}|{{.MemUsage}}|{{.MemPerc}}" 2>&1');
+            if (!empty($statsOutput) && strpos($statsOutput, 'permission denied') === false) {
+                $lines = explode("\n", trim($statsOutput));
+                foreach ($lines as $line) {
+                    if (empty($line)) {
+                        continue;
+                    }
+                    $parts = explode('|', $line);
+                    if (count($parts) >= 4) {
+                        $cpu = floatval(str_replace('%', '', trim($parts[1])));
+                        $memPercent = floatval(str_replace('%', '', trim($parts[3])));
+                        $statsMap[$parts[0]] = [
+                            'cpu_percent' => round($cpu, 1),
+                            'mem_usage' => trim($parts[2]),
+                            'mem_percent' => round($memPercent, 1)
+                        ];
+                    }
+                }
+            }
+        }
     }
     
     return [
         'installed' => true,
         'running' => $isRunning,
         'version' => trim($version),
-        'containers' => $allContainers,
+        'containers' => array_map(function ($container) use ($statsMap) {
+            $name = $container['name'];
+            if (isset($statsMap[$name])) {
+                $container['cpu_percent'] = $statsMap[$name]['cpu_percent'];
+                $container['mem_usage'] = $statsMap[$name]['mem_usage'];
+                $container['mem_percent'] = $statsMap[$name]['mem_percent'];
+            } else {
+                $container['cpu_percent'] = null;
+                $container['mem_usage'] = null;
+                $container['mem_percent'] = null;
+            }
+            return $container;
+        }, $allContainers),
         'total' => count($allContainers),
         'running_count' => count($containers),
         'error' => $error
