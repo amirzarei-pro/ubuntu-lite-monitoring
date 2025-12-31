@@ -205,7 +205,7 @@ function getDockerStatus() {
         
         // Get all containers (including stopped) with docker ps -a
         if ($error === null) {
-            $allList = shell_exec('docker ps -a --format "{{.ID}}|{{.Names}}|{{.Status}}|{{.Image}}|{{.Ports}}" 2>&1');
+            $allList = shell_exec('docker ps -a --format "{{.ID}}|{{.Names}}|{{.Status}}|{{.Image}}|{{.Ports}}|{{.Label \"com.docker.compose.project\"}}" 2>&1');
             
             if (!empty($allList) && strpos($allList, 'permission denied') === false) {
                 $lines = explode("\n", trim($allList));
@@ -213,16 +213,18 @@ function getDockerStatus() {
                     if (empty($line)) continue;
                     
                     $parts = explode('|', $line);
-                    if (count($parts) >= 4) {
+                    if (count($parts) >= 5) {
                         $status = $parts[2];
                         $isUp = strpos(strtolower($status), 'up') !== false;
-                        
+                        $project = isset($parts[5]) && $parts[5] !== '<no value>' && $parts[5] !== '' ? $parts[5] : 'Ungrouped';
+
                         $allContainers[] = [
                             'id' => substr($parts[0], 0, 12),
                             'name' => $parts[1],
                             'status' => $status,
                             'image' => $parts[3],
                             'ports' => isset($parts[4]) ? $parts[4] : 'N/A',
+                            'project' => $project,
                             'running' => $isUp
                         ];
                     }

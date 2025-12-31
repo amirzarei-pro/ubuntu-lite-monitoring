@@ -388,6 +388,47 @@ $data = getSystemData();
             border-color: rgba(59, 130, 246, 0.4);
         }
 
+        .compose-group {
+            margin-bottom: 12px;
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            border-radius: 12px;
+            overflow: hidden;
+            background: rgba(59, 130, 246, 0.05);
+        }
+
+        .compose-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 14px;
+            cursor: pointer;
+            color: #e2e8f0;
+            background: rgba(59, 130, 246, 0.12);
+        }
+
+        .compose-header:hover {
+            background: rgba(59, 130, 246, 0.18);
+        }
+
+        .compose-title {
+            font-weight: 700;
+            color: #60a5fa;
+        }
+
+        .compose-count {
+            font-size: 0.9em;
+            color: #cbd5e1;
+        }
+
+        .compose-body {
+            padding: 10px;
+            display: block;
+        }
+
+        .compose-body.collapsed {
+            display: none;
+        }
+
         .usage-chart {
             margin-top: 20px;
             background: rgba(59, 130, 246, 0.08);
@@ -684,24 +725,41 @@ $data = getSystemData();
                     <?php if ($data['docker']['running'] && !empty($data['docker']['containers']) && !$data['docker']['error']): ?>
                         <div style="margin-top: 25px;" id="dockerContainers">
                             <h3 style="color: #60a5fa; margin-bottom: 15px; font-size: 1.1em;">Container Details</h3>
-                            <?php foreach ($data['docker']['containers'] as $container): ?>
-                                <div class="container-card">
-                                    <div class="container-header">
-                                        <div class="container-name"><?php echo htmlspecialchars($container['name']); ?></div>
-                                        <div class="container-status <?php echo $container['running'] ? 'up' : 'down'; ?>">
-                                            <span class="status-dot <?php echo $container['running'] ? 'green' : 'red'; ?>"></span>
-                                            <?php echo $container['running'] ? 'Running' : 'Stopped'; ?>
-                                        </div>
+                            <?php 
+                                $grouped = [];
+                                foreach ($data['docker']['containers'] as $container) {
+                                    $project = isset($container['project']) && $container['project'] ? $container['project'] : 'Ungrouped';
+                                    $grouped[$project][] = $container;
+                                }
+                            ?>
+                            <?php foreach ($grouped as $project => $containers): ?>
+                                <div class="compose-group">
+                                    <div class="compose-header" data-project="<?php echo htmlspecialchars($project); ?>">
+                                        <span class="compose-title"><?php echo htmlspecialchars($project); ?></span>
+                                        <span class="compose-count"><?php echo count($containers); ?> containers</span>
                                     </div>
-                                    <div class="container-details">
-                                        <div><strong>Image:</strong> <?php echo htmlspecialchars($container['image']); ?></div>
-                                        <div><strong>Status:</strong> <?php echo htmlspecialchars($container['status']); ?></div>
-                                        <div><strong>ID:</strong> <?php echo htmlspecialchars($container['id']); ?></div>
-                                        <div><strong>CPU:</strong> <?php echo $container['cpu_percent'] !== null ? htmlspecialchars($container['cpu_percent']) . '%' : 'N/A'; ?></div>
-                                        <div><strong>RAM:</strong> <?php echo $container['mem_usage'] !== null ? htmlspecialchars($container['mem_usage']) . ' (' . htmlspecialchars($container['mem_percent']) . '%)' : 'N/A'; ?></div>
-                                        <?php if ($container['ports'] !== 'N/A' && !empty($container['ports'])): ?>
-                                            <div><strong>Ports:</strong> <?php echo htmlspecialchars($container['ports']); ?></div>
-                                        <?php endif; ?>
+                                    <div class="compose-body">
+                                        <?php foreach ($containers as $container): ?>
+                                            <div class="container-card">
+                                                <div class="container-header">
+                                                    <div class="container-name"><?php echo htmlspecialchars($container['name']); ?></div>
+                                                    <div class="container-status <?php echo $container['running'] ? 'up' : 'down'; ?>">
+                                                        <span class="status-dot <?php echo $container['running'] ? 'green' : 'red'; ?>"></span>
+                                                        <?php echo $container['running'] ? 'Running' : 'Stopped'; ?>
+                                                    </div>
+                                                </div>
+                                                <div class="container-details">
+                                                    <div><strong>Image:</strong> <?php echo htmlspecialchars($container['image']); ?></div>
+                                                    <div><strong>Status:</strong> <?php echo htmlspecialchars($container['status']); ?></div>
+                                                    <div><strong>ID:</strong> <?php echo htmlspecialchars($container['id']); ?></div>
+                                                    <div><strong>CPU:</strong> <?php echo $container['cpu_percent'] !== null ? htmlspecialchars($container['cpu_percent']) . '%' : 'N/A'; ?></div>
+                                                    <div><strong>RAM:</strong> <?php echo $container['mem_usage'] !== null ? htmlspecialchars($container['mem_usage']) . ' (' . htmlspecialchars($container['mem_percent']) . '%)' : 'N/A'; ?></div>
+                                                    <?php if ($container['ports'] !== 'N/A' && !empty($container['ports'])): ?>
+                                                        <div><strong>Ports:</strong> <?php echo htmlspecialchars($container['ports']); ?></div>
+                                                    <?php endif; ?>
+                                                </div>
+                                            </div>
+                                        <?php endforeach; ?>
                                     </div>
                                 </div>
                             <?php endforeach; ?>
@@ -767,6 +825,7 @@ $data = getSystemData();
         let updateInterval;
         const REFRESH_INTERVAL = 3000;
         let autoRefreshEnabled = true;
+        const composeCollapsed = {};
         
         function updateGauge(id, percent) {
             const gauge = document.getElementById(id);
@@ -788,20 +847,40 @@ $data = getSystemData();
         function updateDockerContainers(containers) {
             const containerDiv = document.getElementById('dockerContainers');
             if (!containerDiv) return;
-            
-            let html = '<h3 style="color: #60a5fa; margin-bottom: 15px; font-size: 1.1em;">Container Details</h3>';
-            
+
             if (containers.length === 0) {
-                html = '<div style="margin-top: 20px; text-align: center; color: #94a3b8;">No containers found</div>';
-            } else {
-                containers.forEach(container => {
+                containerDiv.innerHTML = '<div style="margin-top: 20px; text-align: center; color: #94a3b8;">No containers found</div>';
+                return;
+            }
+
+            const groups = {};
+            containers.forEach(container => {
+                const project = container.project && container.project !== '<no value>' ? container.project : 'Ungrouped';
+                if (!groups[project]) groups[project] = [];
+                groups[project].push(container);
+            });
+
+            const sortedProjects = Object.keys(groups).sort();
+            let html = '<h3 style="color: #60a5fa; margin-bottom: 15px; font-size: 1.1em;">Container Details</h3>';
+
+            sortedProjects.forEach(project => {
+                const collapsed = composeCollapsed[project] === true;
+                html += `<div class="compose-group">
+                    <div class="compose-header" data-project="${escapeHtml(project)}">
+                        <span class="compose-title">${escapeHtml(project)}</span>
+                        <span class="compose-count">${groups[project].length} containers</span>
+                    </div>
+                    <div class="compose-body ${collapsed ? 'collapsed' : ''}">
+                `;
+
+                groups[project].forEach(container => {
                     const statusClass = container.running ? 'up' : 'down';
                     const statusDot = container.running ? 'green' : 'red';
                     const statusText = container.running ? 'Running' : 'Stopped';
                     const cpu = container.cpu_percent !== null && container.cpu_percent !== undefined ? `${container.cpu_percent}%` : 'N/A';
                     const memUsage = container.mem_usage ? container.mem_usage : 'N/A';
                     const memPercent = container.mem_percent !== null && container.mem_percent !== undefined ? `${container.mem_percent}%` : 'N/A';
-                    
+
                     html += `
                         <div class="container-card">
                             <div class="container-header">
@@ -822,9 +901,20 @@ $data = getSystemData();
                         </div>
                     `;
                 });
-            }
-            
+
+                html += '</div></div>';
+            });
+
             containerDiv.innerHTML = html;
+
+            containerDiv.querySelectorAll('.compose-header').forEach(header => {
+                header.addEventListener('click', () => {
+                    const project = header.dataset.project || 'Ungrouped';
+                    const body = header.nextElementSibling;
+                    const isCollapsed = body.classList.toggle('collapsed');
+                    composeCollapsed[project] = isCollapsed;
+                });
+            });
         }
 
         function renderContainerUsage(containers) {
