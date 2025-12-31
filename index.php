@@ -733,12 +733,22 @@ $data = getSystemData();
                                 }
                             ?>
                             <?php foreach ($grouped as $project => $containers): ?>
+                                <?php
+                                    $cpuSum = 0; $cpuHas = 0;
+                                    $memSum = 0; $memHas = 0;
+                                    foreach ($containers as $c) {
+                                        if (isset($c['cpu_percent']) && $c['cpu_percent'] !== null) { $cpuSum += (float)$c['cpu_percent']; $cpuHas++; }
+                                        if (isset($c['mem_percent']) && $c['mem_percent'] !== null) { $memSum += (float)$c['mem_percent']; $memHas++; }
+                                    }
+                                    $cpuLabel = $cpuHas ? round($cpuSum, 1) . '%' : 'N/A';
+                                    $memLabel = $memHas ? round($memSum, 1) . '%' : 'N/A';
+                                ?>
                                 <div class="compose-group">
                                     <div class="compose-header" data-project="<?php echo htmlspecialchars($project); ?>">
                                         <span class="compose-title"><?php echo htmlspecialchars($project); ?></span>
-                                        <span class="compose-count"><?php echo count($containers); ?> containers</span>
+                                        <span class="compose-count">CPU: <?php echo $cpuLabel; ?> | RAM: <?php echo $memLabel; ?> | <?php echo count($containers); ?> containers</span>
                                     </div>
-                                    <div class="compose-body">
+                                    <div class="compose-body collapsed">
                                         <?php foreach ($containers as $container): ?>
                                             <div class="container-card">
                                                 <div class="container-header">
@@ -864,11 +874,17 @@ $data = getSystemData();
             let html = '<h3 style="color: #60a5fa; margin-bottom: 15px; font-size: 1.1em;">Container Details</h3>';
 
             sortedProjects.forEach(project => {
-                const collapsed = composeCollapsed[project] === true;
+                const cpuSum = groups[project].reduce((sum, c) => sum + (c.cpu_percent !== null && !isNaN(c.cpu_percent) ? Number(c.cpu_percent) : 0), 0);
+                const cpuHas = groups[project].some(c => c.cpu_percent !== null && !isNaN(c.cpu_percent));
+                const memSum = groups[project].reduce((sum, c) => sum + (c.mem_percent !== null && !isNaN(c.mem_percent) ? Number(c.mem_percent) : 0), 0);
+                const memHas = groups[project].some(c => c.mem_percent !== null && !isNaN(c.mem_percent));
+                const cpuLabel = cpuHas ? `${cpuSum.toFixed(1)}%` : 'N/A';
+                const memLabel = memHas ? `${memSum.toFixed(1)}%` : 'N/A';
+                const collapsed = Object.prototype.hasOwnProperty.call(composeCollapsed, project) ? composeCollapsed[project] : true;
                 html += `<div class="compose-group">
                     <div class="compose-header" data-project="${escapeHtml(project)}">
                         <span class="compose-title">${escapeHtml(project)}</span>
-                        <span class="compose-count">${groups[project].length} containers</span>
+                        <span class="compose-count">CPU: ${cpuLabel} | RAM: ${memLabel} | ${groups[project].length} containers</span>
                     </div>
                     <div class="compose-body ${collapsed ? 'collapsed' : ''}">
                 `;
