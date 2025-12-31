@@ -41,6 +41,14 @@ $data = getSystemData();
             margin-bottom: 30px;
         }
 
+        .header-meta {
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
         h1 {
             font-size: 2em;
             text-shadow: 0 0 20px rgba(59, 130, 246, 0.5);
@@ -51,6 +59,28 @@ $data = getSystemData();
         .last-update {
             font-size: 0.9em;
             color: #94a3b8;
+        }
+
+        .refresh-toggle {
+            padding: 8px 14px;
+            border-radius: 10px;
+            border: 1px solid rgba(59, 130, 246, 0.5);
+            background: rgba(59, 130, 246, 0.15);
+            color: #e2e8f0;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+
+        .refresh-toggle:hover {
+            border-color: rgba(59, 130, 246, 0.8);
+            background: rgba(59, 130, 246, 0.25);
+        }
+
+        .refresh-toggle.off {
+            border-color: rgba(148, 163, 184, 0.6);
+            background: rgba(148, 163, 184, 0.15);
+            color: #cbd5e1;
         }
 
         .section {
@@ -426,7 +456,10 @@ $data = getSystemData();
     <div class="container">
         <div class="header">
             <h1>🖥️ System Monitor Dashboard</h1>
-            <div class="last-update">Last update: <span id="timestamp"><?php echo $data['system']['timestamp']; ?></span></div>
+            <div class="header-meta">
+                <div class="last-update">Last update: <span id="timestamp"><?php echo $data['system']['timestamp']; ?></span></div>
+                <button id="refreshToggle" class="refresh-toggle">Auto Refresh: On</button>
+            </div>
         </div>
         
         <!-- Resources Section -->
@@ -660,6 +693,8 @@ $data = getSystemData();
 
     <script>
         let updateInterval;
+        const REFRESH_INTERVAL = 3000;
+        let autoRefreshEnabled = true;
         
         function updateGauge(id, percent) {
             const gauge = document.getElementById(id);
@@ -778,11 +813,43 @@ $data = getSystemData();
             }
         }
 
-        // Start auto-update every 3 seconds
-        updateInterval = setInterval(updateData, 3000);
-        
-        // Initial update after 3 seconds
-        setTimeout(updateData, 3000);
+        function stopAutoRefresh() {
+            if (updateInterval) {
+                clearInterval(updateInterval);
+                updateInterval = null;
+            }
+        }
+
+        function startAutoRefresh() {
+            stopAutoRefresh();
+            updateInterval = setInterval(updateData, REFRESH_INTERVAL);
+        }
+
+        function updateToggleLabel() {
+            const btn = document.getElementById('refreshToggle');
+            if (!btn) return;
+            btn.textContent = autoRefreshEnabled ? 'Auto Refresh: On' : 'Auto Refresh: Off';
+            btn.classList.toggle('off', !autoRefreshEnabled);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const toggleBtn = document.getElementById('refreshToggle');
+            if (toggleBtn) {
+                toggleBtn.addEventListener('click', () => {
+                    autoRefreshEnabled = !autoRefreshEnabled;
+                    if (autoRefreshEnabled) {
+                        startAutoRefresh();
+                    } else {
+                        stopAutoRefresh();
+                    }
+                    updateToggleLabel();
+                });
+            }
+
+            updateToggleLabel();
+            updateData();
+            startAutoRefresh();
+        });
     </script>
 </body>
 </html>
