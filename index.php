@@ -416,6 +416,8 @@ $data = getSystemData();
             color: #e2e8f0;
             padding: 6px 10px;
             border-radius: 8px;
+            position: relative;
+            z-index: 1000;
         }
 
         .chart-legend {
