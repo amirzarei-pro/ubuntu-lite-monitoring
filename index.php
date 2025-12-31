@@ -404,6 +404,9 @@ $data = getSystemData();
             cursor: pointer;
             color: #e2e8f0;
             background: rgba(59, 130, 246, 0.12);
+            position: relative;
+            z-index: 100;
+            user-select: none;
         }
 
         .compose-header:hover {
@@ -423,6 +426,8 @@ $data = getSystemData();
         .compose-body {
             padding: 10px;
             display: block;
+            position: relative;
+            z-index: 1;
         }
 
         .compose-body.collapsed {
