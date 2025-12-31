@@ -388,6 +388,63 @@ $data = getSystemData();
             border-color: rgba(59, 130, 246, 0.4);
         }
 
+        .usage-chart {
+            margin-top: 20px;
+            background: rgba(59, 130, 246, 0.08);
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            border-radius: 12px;
+            padding: 15px;
+        }
+
+        .usage-chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+
+        .usage-chart-title {
+            color: #60a5fa;
+            font-weight: 600;
+        }
+
+        .usage-chart-select {
+            background: rgba(30, 41, 59, 0.8);
+            border: 1px solid rgba(59, 130, 246, 0.4);
+            color: #e2e8f0;
+            padding: 6px 10px;
+            border-radius: 8px;
+        }
+
+        .chart-legend {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 8px;
+            margin-top: 10px;
+            font-size: 0.9em;
+            color: #cbd5e1;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .legend-swatch {
+            width: 12px;
+            height: 12px;
+            border-radius: 4px;
+        }
+
+        .chart-empty {
+            text-align: center;
+            color: #94a3b8;
+            padding: 12px 0;
+        }
+
         .container-header {
             display: flex;
             justify-content: space-between;
@@ -608,6 +665,19 @@ $data = getSystemData();
                         <span class="info-label">Running:</span>
                         <span class="info-value" id="dockerRunning"><?php echo $data['docker']['running_count']; ?></span>
                     </div>
+
+                    <div class="usage-chart" id="usageChartBlock" style="display: none;">
+                        <div class="usage-chart-header">
+                            <div class="usage-chart-title">Containers Usage</div>
+                            <select id="usageMetric" class="usage-chart-select">
+                                <option value="cpu">CPU %</option>
+                                <option value="mem">RAM %</option>
+                            </select>
+                        </div>
+                        <canvas id="containerUsageChart" width="320" height="320"></canvas>
+                        <div class="chart-empty" id="chartEmpty">No usage data available</div>
+                        <div class="chart-legend" id="containerUsageLegend"></div>
+                    </div>
                     
                     <?php if ($data['docker']['running'] && !empty($data['docker']['containers']) && !$data['docker']['error']): ?>
                         <div style="margin-top: 25px;" id="dockerContainers">
@@ -755,6 +825,69 @@ $data = getSystemData();
             containerDiv.innerHTML = html;
         }
 
+        function renderContainerUsage(containers) {
+            const canvas = document.getElementById('containerUsageChart');
+            const legend = document.getElementById('containerUsageLegend');
+            const empty = document.getElementById('chartEmpty');
+            const block = document.getElementById('usageChartBlock');
+            const metricSelect = document.getElementById('usageMetric');
+            if (!canvas || !legend || !empty || !block || !metricSelect) return;
+
+            const metric = metricSelect.value === 'mem' ? 'mem_percent' : 'cpu_percent';
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const filtered = containers.filter(c => c.running && c[metric] !== null && !isNaN(c[metric]) && c[metric] > 0);
+            const total = filtered.reduce((sum, c) => sum + c[metric], 0);
+
+            if (filtered.length === 0 || total === 0) {
+                empty.style.display = 'block';
+                legend.innerHTML = '';
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                return;
+            }
+
+            block.style.display = 'block';
+            empty.style.display = 'none';
+
+            const colors = [
+                '#3b82f6', '#22d3ee', '#a855f7', '#f97316', '#ef4444',
+                '#10b981', '#eab308', '#8b5cf6', '#06b6d4', '#fb7185'
+            ];
+
+            let startAngle = -Math.PI / 2;
+            legend.innerHTML = '';
+
+            filtered.forEach((c, idx) => {
+                const value = c[metric];
+                const angle = (value / total) * Math.PI * 2;
+                const endAngle = startAngle + angle;
+                const color = colors[idx % colors.length];
+
+                ctx.beginPath();
+                ctx.moveTo(160, 160);
+                ctx.arc(160, 160, 140, startAngle, endAngle);
+                ctx.closePath();
+                ctx.fillStyle = color;
+                ctx.fill();
+
+                startAngle = endAngle;
+
+                const percent = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
+                legend.innerHTML += `
+                    <div class="legend-item">
+                        <span class="legend-swatch" style="background:${color}"></span>
+                        <span>${escapeHtml(c.name)} — ${value.toFixed(1)}% (${percent}%)</span>
+                    </div>
+                `;
+            });
+
+            ctx.beginPath();
+            ctx.fillStyle = '#0f172a';
+            ctx.arc(160, 160, 80, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
         function escapeHtml(text) {
             const div = document.createElement('div');
             div.textContent = text;
@@ -795,6 +928,8 @@ $data = getSystemData();
                     updateValue('dockerTotal', data.docker.total);
                     updateValue('dockerRunning', data.docker.running_count);
                     updateDockerContainers(data.docker.containers);
+                    window.latestDockerData = data.docker.containers;
+                    renderContainerUsage(data.docker.containers);
                 }
                 
                 // Update System Info
@@ -843,6 +978,15 @@ $data = getSystemData();
                         stopAutoRefresh();
                     }
                     updateToggleLabel();
+                });
+            }
+
+            const metricSelect = document.getElementById('usageMetric');
+            if (metricSelect) {
+                metricSelect.addEventListener('change', () => {
+                    if (window.latestDockerData) {
+                        renderContainerUsage(window.latestDockerData);
+                    }
                 });
             }
 
