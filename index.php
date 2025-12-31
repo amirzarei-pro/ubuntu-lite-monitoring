@@ -666,7 +666,7 @@ $data = getSystemData();
                         <span class="info-value" id="dockerRunning"><?php echo $data['docker']['running_count']; ?></span>
                     </div>
 
-                    <div class="usage-chart" id="usageChartBlock" style="display: none;">
+                    <div class="usage-chart" id="usageChartBlock">
                         <div class="usage-chart-header">
                             <div class="usage-chart-title">Containers Usage</div>
                             <select id="usageMetric" class="usage-chart-select">
@@ -840,6 +840,8 @@ $data = getSystemData();
             const filtered = containers.filter(c => c.running && c[metric] !== null && !isNaN(c[metric]) && c[metric] > 0);
             const total = filtered.reduce((sum, c) => sum + c[metric], 0);
 
+            block.style.display = 'block';
+
             if (filtered.length === 0 || total === 0) {
                 empty.style.display = 'block';
                 legend.innerHTML = '';
@@ -847,7 +849,6 @@ $data = getSystemData();
                 return;
             }
 
-            block.style.display = 'block';
             empty.style.display = 'none';
 
             const colors = [
